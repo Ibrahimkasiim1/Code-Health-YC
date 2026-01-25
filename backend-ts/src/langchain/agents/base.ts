@@ -3,6 +3,10 @@ import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { StructuredTool } from "@langchain/core/tools";
 import { getConfig } from "../../config.js";
 import { AgentOutput, Issue } from "../schemas/issue.js";
+import { EventEmitter } from "events";
+
+// Fix MaxListenersExceededWarning by increasing the limit
+EventEmitter.defaultMaxListeners = 20;
 
 export interface AgentConfig {
   name: string;
@@ -47,12 +51,19 @@ export abstract class BaseAgent {
   /**
    * Create the LangGraph ReAct agent
    */
-  protected createAgent() {
+  protected createAgent(): ReturnType<typeof createReactAgent> {
     return createReactAgent({
       llm: this.model,
       tools: this.tools,
       messageModifier: this.systemPrompt,
     });
+  }
+
+  /**
+   * Get the recursion limit for this agent (can be overridden)
+   */
+  protected getRecursionLimit(): number {
+    return 50; // ✅ FIXED: Increased from 25 to 50 for more complex analysis
   }
 
   /**
@@ -72,7 +83,9 @@ export abstract class BaseAgent {
           accessToken: context.accessToken,
           owner: context.owner,
           repo: context.repo,
+          repoId: context.repoId, // Add repoId to configurable context
         },
+        recursionLimit: this.getRecursionLimit(), // Use configurable recursion limit
       });
 
       const issues = this.parseIssues(result);
@@ -85,6 +98,7 @@ export abstract class BaseAgent {
         execution_time_ms: Date.now() - startTime,
       };
     } catch (error) {
+      console.error(`[${this.name}] Agent execution failed:`, error);
       return {
         agent_name: this.name,
         status: "error",
@@ -102,26 +116,82 @@ export abstract class BaseAgent {
   protected abstract buildUserMessage(context: AgentContext): string;
 
   /**
-   * Parse issues from agent response - override in subclasses for custom parsing
+   * ✅ FIXED: Improved JSON parsing with multiple fallback methods
    */
-  protected parseIssues(result: { messages: Array<{ content: string }> }): Issue[] {
+  protected parseIssues(result: { messages: Array<{ content: string | any }> }): Issue[] {
     try {
       const lastMessage = result.messages[result.messages.length - 1];
-      const content = typeof lastMessage.content === "string" ? lastMessage.content : JSON.stringify(lastMessage.content);
+      const content = typeof lastMessage.content === "string"
+        ? lastMessage.content
+        : JSON.stringify(lastMessage.content);
 
-      // Try to extract JSON from the response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        if (Array.isArray(parsed.issues)) {
-          return parsed.issues.map((issue: Partial<Issue>) => ({
-            ...issue,
-            agent: this.name,
-          })) as Issue[];
+      let parsed: any;
+
+      // Method 1: Direct JSON parse (for clean LLM responses)
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        // Method 2: Extract from markdown code blocks
+        const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (codeBlockMatch) {
+          try {
+            parsed = JSON.parse(codeBlockMatch[1].trim());
+          } catch {
+            // Method 3: Find JSON object with better regex
+            const jsonMatch = content.match(/\{[\s\S]*"issues"[\s\S]*\}/);
+            if (jsonMatch) {
+              try {
+                parsed = JSON.parse(jsonMatch[0]);
+              } catch {
+                console.error(`[${this.name}] Failed all JSON parsing methods`);
+                return [];
+              }
+            }
+          }
+        } else {
+          // Method 3: Try direct regex match
+          const jsonMatch = content.match(/\{[\s\S]*"issues"[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              parsed = JSON.parse(jsonMatch[0]);
+            } catch {
+              console.error(`[${this.name}] Failed all JSON parsing methods`);
+              return [];
+            }
+          }
         }
       }
+
+      // Validate and normalize issues
+      if (parsed && Array.isArray(parsed.issues)) {
+        return parsed.issues.map((issue: Partial<Issue>, index: number) => {
+          // Generate issue_id if missing
+          const issueId = issue.issue_id || `${this.name.toLowerCase()}-${Date.now()}-${index}`;
+
+          return {
+            issue_id: issueId,
+            agent: this.name,
+            type: issue.type || "security_vulnerability",
+            severity: issue.severity || "medium",
+            title: issue.title || "Untitled Issue",
+            description: issue.description || "",
+            file_path: issue.file_path || "",
+            line_start: issue.line_start || 0,
+            line_end: issue.line_end || 0,
+            code_snippet: issue.code_snippet || "",
+            root_cause: issue.root_cause || "",
+            impact: issue.impact || "",
+            suggested_fix: issue.suggested_fix || "",
+            confidence: issue.confidence || 0.5,
+            metadata: issue.metadata || {},
+          } as Issue;
+        });
+      }
+
+      console.warn(`[${this.name}] Response didn't contain issues array`);
       return [];
-    } catch {
+    } catch (error) {
+      console.error(`[${this.name}] Failed to parse issues:`, error);
       return [];
     }
   }

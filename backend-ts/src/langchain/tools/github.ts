@@ -1,6 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { Octokit } from "octokit";
+import { getCachedResponse, setCachedResponse } from "./cache.js";
 
 // Tool context that will be injected at runtime
 export interface GitHubToolContext {
@@ -19,6 +20,18 @@ export const githubSearchCode = tool(
       return JSON.stringify({ error: "GitHub access token not configured" });
     }
 
+    // Check cache first
+    const cacheParams = {
+      owner: ctx.owner,
+      repo: ctx.repo,
+      query: input.query,
+    };
+    const cached = await getCachedResponse<any[]>('search_code', cacheParams);
+    if (cached) {
+      console.log(`[GitHub Cache] HIT for search: ${input.query}`);
+      return JSON.stringify(cached);
+    }
+
     const octokit = new Octokit({ auth: ctx.accessToken });
 
     try {
@@ -34,9 +47,18 @@ export const githubSearchCode = tool(
         score: item.score,
       }));
 
+      // Cache the results for 24 hours
+      await setCachedResponse('search_code', cacheParams, results, 24);
+      console.log(`[GitHub Cache] MISS for search: ${input.query} - cached for 24h`);
+
       return JSON.stringify(results);
-    } catch (error) {
-      return JSON.stringify({ error: `Search failed: ${error}` });
+    } catch (error: any) {
+      // Handle rate limiting gracefully
+      if (error?.message?.includes('quota exhausted') || error?.status === 403) {
+        console.log(`[GitHub Cache] Rate limit hit for search: ${input.query}`);
+        return JSON.stringify({ error: 'Rate limit exceeded. Please try again later.', results: [] });
+      }
+      return JSON.stringify({ error: `Search failed: ${error}`, results: [] });
     }
   },
   {
@@ -58,6 +80,19 @@ export const githubGetFile = tool(
       return JSON.stringify({ error: "GitHub access token not configured" });
     }
 
+    // Check cache first
+    const cacheParams = {
+      owner: ctx.owner,
+      repo: ctx.repo,
+      file_path: input.file_path,
+      ref: input.ref || 'HEAD',
+    };
+    const cached = await getCachedResponse<any>('get_file', cacheParams);
+    if (cached) {
+      console.log(`[GitHub Cache] HIT for file: ${input.file_path}`);
+      return JSON.stringify(cached);
+    }
+
     const octokit = new Octokit({ auth: ctx.accessToken });
 
     try {
@@ -70,12 +105,18 @@ export const githubGetFile = tool(
 
       if ("content" in data && data.encoding === "base64") {
         const content = Buffer.from(data.content, "base64").toString("utf-8");
-        return JSON.stringify({
+        const result = {
           content,
           sha: data.sha,
           size: data.size,
           path: data.path,
-        });
+        };
+
+        // Cache file content for 24 hours
+        await setCachedResponse('get_file', cacheParams, result, 24);
+        console.log(`[GitHub Cache] MISS for file: ${input.file_path} - cached for 24h`);
+
+        return JSON.stringify(result);
       }
 
       return JSON.stringify({ error: "File content not available" });

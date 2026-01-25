@@ -6,7 +6,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "seed:telemetry": "tsx scripts/seed-telemetry.ts",
+    "unseed:telemetry": "tsx scripts/unseed-telemetry.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -27,6 +29,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/diff": "^7.0.2",
     "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.5",
     "tsx": "^4.19.2",

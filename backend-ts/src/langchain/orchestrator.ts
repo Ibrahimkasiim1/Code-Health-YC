@@ -148,6 +148,7 @@ export class AgentOrchestrator {
     const supabase = getSupabase();
     const records = issues.map((issue) => ({
       repo_id: repoId,
+      agent_type: issue.agent, // Map agent name to agent_type column
       issue_type: issue.type,
       severity: issue.severity,
       title: issue.title,
@@ -160,7 +161,7 @@ export class AgentOrchestrator {
       impact: issue.impact,
       suggested_fix: issue.suggested_fix,
       confidence: issue.confidence,
-      agent: issue.agent,
+      agent: issue.agent, // Also keep agent column for backwards compatibility
       status: "open",
     }));
 

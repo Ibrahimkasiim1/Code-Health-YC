@@ -68,18 +68,28 @@ export class BusinessIntelAgent extends BaseAgent {
   protected buildUserMessage(context: AgentContext): string {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    
+
     return `Analyze cost efficiency for the organization associated with repository ${context.owner}/${context.repo}.
+
+Repository ID (UUID): ${context.repoId}
 
 Time period: ${thirtyDaysAgo.toISOString()} to ${now.toISOString()}
 
+IMPORTANT: When using database tools:
+- Use repo_id="${context.repoId}" (this is a UUID, not the repository name)
+- Do NOT use "${context.owner}" or "${context.repo}" as UUIDs
+- If you don't have a valid user_id UUID, skip the user_id parameter entirely
+
 Steps:
-1. Get Brex spending data for the last 30 days
-2. Query telemetry to understand API usage patterns
-3. Calculate unit economics for each service
-4. Compare against industry benchmarks
-5. Identify caching opportunities from duplicate requests
-6. Find unused or underutilized paid services
+1. Query telemetry to understand API usage patterns (no user_id needed)
+2. Get repository context using repo_id="${context.repoId}"
+3. Detect duplicate requests for caching opportunities
+4. Skip Brex spending queries if you don't have a valid user UUID
+
+Focus on telemetry-based cost analysis:
+- Identify caching opportunities from duplicate requests
+- Find inefficient API usage patterns
+- Detect unused features based on telemetry
 
 Provide all cost inefficiency findings as JSON with the standard issue format.
 Include potential monthly savings in the metadata for each issue.`;
@@ -87,7 +97,7 @@ Include potential monthly savings in the metadata for each issue.`;
 
   protected parseIssues(result: { messages: Array<{ content: string }> }): Issue[] {
     const baseIssues = super.parseIssues(result);
-    
+
     return baseIssues.map(issue => ({
       ...issue,
       type: "cost_inefficiency" as const,

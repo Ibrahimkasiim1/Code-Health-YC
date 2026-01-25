@@ -68,13 +68,13 @@ export class DatabaseAgent extends BaseAgent {
     const repoContext = context.repositoryContext;
     const databases = (repoContext?.databases as string[]) || [];
     const frameworks = (repoContext?.frameworks as string[]) || [];
-    
+
     // Detect likely ORM from frameworks
     let ormHint = "";
     if (frameworks.some(f => f.toLowerCase().includes("prisma"))) ormHint = "prisma";
     else if (frameworks.some(f => f.toLowerCase().includes("sequelize"))) ormHint = "sequelize";
     else if (frameworks.some(f => f.toLowerCase().includes("typeorm"))) ormHint = "typeorm";
-    
+
     return `Analyze database usage for repository ${context.owner}/${context.repo}.
 
 Repository Context:
@@ -94,12 +94,23 @@ Provide all database inefficiency findings as JSON with the standard issue forma
 
   protected parseIssues(result: { messages: Array<{ content: string }> }): Issue[] {
     const baseIssues = super.parseIssues(result);
-    
+
     return baseIssues.map(issue => ({
       ...issue,
       type: "database_inefficiency" as const,
       agent: this.name,
     }));
+  }
+
+  /**
+   * Increase recursion limit for DatabaseAgent since it needs to:
+   * 1. Search for database-related files
+   * 2. Detect ORM patterns
+   * 3. Find N+1 queries in multiple files
+   * 4. Analyze code with LLM
+   */
+  protected getRecursionLimit(): number {
+    return 80; // Increased from default 50 to prevent recursion errors
   }
 }
 

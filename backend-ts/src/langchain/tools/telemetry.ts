@@ -6,14 +6,20 @@ import { getSupabase } from "../../db.js";
  * Query telemetry events with flexible filtering
  */
 export const queryTelemetryEvents = tool(
-  async (input) => {
+  async (input, config) => {
     const supabase = getSupabase();
     try {
+      // Get repo_id from configurable context
+      const repoId = (config?.configurable as any)?.repoId;
+
       let query = supabase
         .from("telemetry_events")
         .select("*")
         .gte("timestamp", input.start_date)
         .lte("timestamp", input.end_date);
+
+      // ✅ FIXED: Filter by repo_id if available
+      if (repoId) query = query.eq("repo_id", repoId);
 
       if (input.endpoint) query = query.eq("endpoint", input.endpoint);
       if (input.event_type) query = query.eq("event_type", input.event_type);
@@ -28,7 +34,7 @@ export const queryTelemetryEvents = tool(
   },
   {
     name: "query_telemetry_events",
-    description: "Get telemetry data with flexible filtering.",
+    description: "Get telemetry data with flexible filtering. Automatically filters by current repository.",
     schema: z.object({
       endpoint: z.string().optional().describe("Filter by specific endpoint"),
       event_type: z.string().optional().describe("Filter by event type"),
@@ -43,19 +49,26 @@ export const queryTelemetryEvents = tool(
  * Calculate latency percentiles for an endpoint
  */
 export const calculateLatencyPercentiles = tool(
-  async (input) => {
+  async (input, config) => {
     const supabase = getSupabase();
     try {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - input.timeframe_days);
 
-      const { data, error } = await supabase
+      // Get repo_id from configurable context
+      const repoId = (config?.configurable as any)?.repoId;
+
+      let query = supabase
         .from("telemetry_events")
         .select("duration_ms")
         .eq("endpoint", input.endpoint)
         .gte("timestamp", cutoff.toISOString())
         .not("duration_ms", "is", null);
 
+      // ✅ FIXED: Filter by repo_id if available
+      if (repoId) query = query.eq("repo_id", repoId);
+
+      const { data, error } = await query;
       if (error) return JSON.stringify({ error: error.message });
       if (!data || data.length === 0) return JSON.stringify({ error: "No data found" });
 
@@ -74,7 +87,7 @@ export const calculateLatencyPercentiles = tool(
   },
   {
     name: "calculate_latency_percentiles",
-    description: "Compute p50, p95, p99 latency for an endpoint.",
+    description: "Compute p50, p95, p99 latency for an endpoint. Automatically filters by current repository.",
     schema: z.object({
       endpoint: z.string().describe("The endpoint to analyze"),
       timeframe_days: z.number().describe("Number of days to analyze"),
@@ -86,15 +99,21 @@ export const calculateLatencyPercentiles = tool(
  * Get user navigation paths through the application
  */
 export const getSessionFlows = tool(
-  async (input) => {
+  async (input, config) => {
     const supabase = getSupabase();
     try {
+      // Get repo_id from configurable context
+      const repoId = (config?.configurable as any)?.repoId;
+
       let query = supabase
         .from("session_events")
         .select("session_id, page_url, timestamp, duration_ms")
         .gte("timestamp", input.start_date)
         .lte("timestamp", input.end_date)
         .order("timestamp", { ascending: true });
+
+      // ✅ FIXED: Filter by repo_id if available
+      if (repoId) query = query.eq("repo_id", repoId);
 
       if (input.session_id) query = query.eq("session_id", input.session_id);
       if (input.page_url) query = query.eq("page_url", input.page_url);
@@ -117,7 +136,7 @@ export const getSessionFlows = tool(
   },
   {
     name: "get_session_flows",
-    description: "Get user navigation paths. Use to analyze bounce rates.",
+    description: "Get user navigation paths. Use to analyze bounce rates. Automatically filters by current repository.",
     schema: z.object({
       session_id: z.string().optional().describe("Filter by session"),
       page_url: z.string().optional().describe("Filter by page"),
@@ -131,16 +150,24 @@ export const getSessionFlows = tool(
  * Get errors from telemetry with grouping
  */
 export const getErrorEvents = tool(
-  async (input) => {
+  async (input, config) => {
     const supabase = getSupabase();
     try {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - input.timeframe_days);
 
-      const { data, error } = await supabase
+      // Get repo_id from configurable context
+      const repoId = (config?.configurable as any)?.repoId;
+
+      let query = supabase
         .from("error_events")
         .select("error_message, stack_trace, endpoint, user_id, timestamp")
         .gte("timestamp", cutoff.toISOString());
+
+      // ✅ FIXED: Filter by repo_id if available
+      if (repoId) query = query.eq("repo_id", repoId);
+
+      const { data, error } = await query;
 
       if (error) return JSON.stringify({ error: error.message });
 
@@ -166,7 +193,7 @@ export const getErrorEvents = tool(
   },
   {
     name: "get_error_events",
-    description: "Get errors from telemetry with grouping.",
+    description: "Get errors from telemetry with grouping. Automatically filters by current repository.",
     schema: z.object({
       timeframe_days: z.number().describe("Number of days to analyze"),
       group_by: z.enum(["message", "stack_trace", "endpoint"]).describe("How to group errors"),
@@ -179,18 +206,26 @@ export const getErrorEvents = tool(
  * Find identical API calls within time window
  */
 export const detectDuplicateRequests = tool(
-  async (input) => {
+  async (input, config) => {
     const supabase = getSupabase();
     try {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - input.timeframe_days);
 
-      const { data, error } = await supabase
+      // Get repo_id from configurable context
+      const repoId = (config?.configurable as any)?.repoId;
+
+      let query = supabase
         .from("telemetry_events")
         .select("endpoint, request_hash, duration_ms, timestamp")
         .eq("endpoint", input.endpoint)
         .gte("timestamp", cutoff.toISOString())
         .order("timestamp", { ascending: true });
+
+      // ✅ FIXED: Filter by repo_id if available
+      if (repoId) query = query.eq("repo_id", repoId);
+
+      const { data, error } = await query;
 
       if (error) return JSON.stringify({ error: error.message });
       if (!data || data.length === 0) return JSON.stringify({ duplicate_count: 0, total_requests: 0, cache_hit_rate_potential: 0, savings_estimate_ms: 0 });
@@ -219,7 +254,7 @@ export const detectDuplicateRequests = tool(
   },
   {
     name: "detect_duplicate_requests",
-    description: "Find identical API calls within time window for caching opportunities.",
+    description: "Find identical API calls within time window for caching opportunities. Automatically filters by current repository.",
     schema: z.object({
       endpoint: z.string().describe("The endpoint to analyze"),
       window_minutes: z.number().describe("Time window in minutes"),

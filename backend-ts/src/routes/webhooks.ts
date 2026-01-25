@@ -103,8 +103,58 @@ webhooks.post("/ingest", async (c) => {
     return c.json({ detail: "Invalid payload" }, 400);
   }
 
-  // Telemetry table isn't part of the MVP schema; accept payload for now.
-  return c.json({ ingested: true });
+  const supabase = getSupabase();
+  const eventType = body.event_type;
+
+  try {
+    if (eventType === "telemetry" || eventType === "api_call") {
+      // ✅ FIXED: Include repo_id in telemetry events
+      await supabase.from("telemetry_events").insert({
+        repo_id: body.repo_id || null, // CRITICAL FIX
+        endpoint: body.endpoint,
+        event_type: body.event_type || "api_call",
+        duration_ms: body.duration_ms,
+        user_id: body.user_id || null,
+        request_hash: body.request_hash || null,
+        metadata: body.metadata || {},
+        timestamp: body.timestamp || new Date().toISOString(),
+      });
+    } else if (eventType === "session" || eventType === "page_view") {
+      // ✅ FIXED: Include repo_id in session events
+      await supabase.from("session_events").insert({
+        repo_id: body.repo_id || null, // CRITICAL FIX
+        session_id: body.session_id,
+        page_url: body.page_url,
+        duration_ms: body.duration_ms || 0,
+        timestamp: body.timestamp || new Date().toISOString(),
+      });
+    } else if (eventType === "error") {
+      // ✅ FIXED: Include repo_id in error events
+      await supabase.from("error_events").insert({
+        repo_id: body.repo_id || null, // CRITICAL FIX
+        error_message: body.error_message,
+        stack_trace: body.stack_trace || null,
+        endpoint: body.endpoint || null,
+        user_id: body.user_id || null,
+        timestamp: body.timestamp || new Date().toISOString(),
+      });
+    } else {
+      // Unknown event type - store as generic telemetry with repo_id
+      await supabase.from("telemetry_events").insert({
+        repo_id: body.repo_id || null, // CRITICAL FIX
+        endpoint: body.endpoint || "unknown",
+        event_type: eventType || "unknown",
+        duration_ms: body.duration_ms || 0,
+        metadata: body,
+        timestamp: body.timestamp || new Date().toISOString(),
+      });
+    }
+
+    return c.json({ ingested: true, event_type: eventType });
+  } catch (error) {
+    console.error("[Webhooks] Failed to ingest telemetry:", error);
+    return c.json({ detail: "Failed to ingest telemetry", error: String(error) }, 500);
+  }
 });
 
 export default webhooks;

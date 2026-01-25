@@ -71,7 +71,7 @@ export class PerformanceAgent extends BaseAgent {
   protected buildUserMessage(context: AgentContext): string {
     const repoContext = context.repositoryContext;
     const apis = (repoContext?.apis as Array<{ path: string }>) || [];
-    
+
     return `Analyze performance for repository ${context.owner}/${context.repo}.
 
 ${apis.length > 0 ? `Known API endpoints: ${apis.map(a => a.path).join(", ")}` : ""}
@@ -90,12 +90,23 @@ Include latency metrics in the metadata for each issue.`;
 
   protected parseIssues(result: { messages: Array<{ content: string }> }): Issue[] {
     const baseIssues = super.parseIssues(result);
-    
+
     return baseIssues.map(issue => ({
       ...issue,
       type: "performance_bottleneck" as const,
       agent: this.name,
     }));
+  }
+
+  /**
+   * Increase recursion limit for PerformanceAgent since it needs to:
+   * 1. Calculate latency percentiles for multiple endpoints
+   * 2. Detect duplicate requests
+   * 3. Search code for bottlenecks
+   * 4. Analyze patterns with LLM
+   */
+  protected getRecursionLimit(): number {
+    return 80; // Increased from default 50 to prevent recursion errors
   }
 }
 

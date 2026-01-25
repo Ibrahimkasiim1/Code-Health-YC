@@ -3,6 +3,9 @@ import { getSupabase } from "../db.js";
 import { authMiddleware, getCurrentUser } from "../middleware/auth.js";
 import { analyzeSchema, generateFixSchema } from "../types/index.js";
 import { orchestrator, configureLangSmith, AgentContext } from "../langchain/index.js";
+import { contextAgent, securityAgent, performanceAgent } from "../langchain/agents/index.js";
+import { createTwoFilesPatch } from "diff";
+import { traceable } from "langsmith/traceable";
 
 const agents = new Hono();
 
@@ -10,6 +13,106 @@ agents.use("*", authMiddleware);
 
 // Initialize LangSmith on module load
 configureLangSmith();
+
+// ✅ NEW: Quick analyze endpoint for demo (faster, focused results)
+agents.post("/quick-analyze", async (c) => {
+  const user = getCurrentUser(c);
+  const body = await c.req.json().catch(() => null);
+  const parsed = analyzeSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return c.json({ detail: "Invalid analysis payload" }, 400);
+  }
+
+  const { repo_id } = parsed.data;
+  const supabase = getSupabase();
+
+  const { data: repo, error } = await supabase
+    .from("connected_repositories")
+    .select("*, github_installations!inner(user_id, access_token_encrypted)")
+    .eq("id", repo_id)
+    .single();
+
+  if (error || !repo) {
+    return c.json({ detail: "Repository not found" }, 404);
+  }
+
+  if (repo.github_installations.user_id !== user.id) {
+    return c.json({ detail: "Access denied" }, 403);
+  }
+
+  const accessToken = repo.github_installations.access_token_encrypted;
+  const [owner, repoName] = repo.repo_full_name.split("/");
+
+  const context: AgentContext = {
+    repoId: repo_id,
+    owner,
+    repo: repoName,
+    accessToken,
+  };
+
+  console.log("[Quick-Analyze] Running Context Agent...");
+  const repoContext = await contextAgent.executeAndSave(context);
+
+  const contextWithRepo = {
+    ...context,
+    repositoryContext: repoContext as unknown as Record<string, unknown>,
+  };
+
+  console.log("[Quick-Analyze] Running Security and Performance Agents...");
+  const [securityResult, perfResult] = await Promise.all([
+    securityAgent.execute(contextWithRepo),
+    performanceAgent.execute(contextWithRepo),
+  ]);
+
+  const allIssues = [
+    ...securityResult.issues,
+    ...perfResult.issues,
+  ];
+
+  // Save issues to database
+  if (allIssues.length > 0) {
+    const records = allIssues.map((issue) => ({
+      repo_id,
+      agent_type: issue.agent,
+      issue_type: issue.type,
+      severity: issue.severity,
+      title: issue.title,
+      description: issue.description,
+      file_path: issue.file_path,
+      line_start: issue.line_start,
+      line_end: issue.line_end,
+      code_snippet: issue.code_snippet,
+      root_cause: issue.root_cause,
+      impact: issue.impact,
+      suggested_fix: issue.suggested_fix,
+      confidence: issue.confidence,
+      agent: issue.agent,
+      status: "open",
+    }));
+
+    await supabase.from("issues").insert(records);
+  }
+
+  return c.json({
+    success: true,
+    context: repoContext,
+    issues_found: allIssues.length,
+    issues: allIssues.map((issue) => ({
+      id: issue.issue_id,
+      title: issue.title,
+      severity: issue.severity,
+      type: issue.type,
+      agent: issue.agent,
+      file_path: issue.file_path,
+      line_start: issue.line_start,
+      line_end: issue.line_end,
+    })),
+    agents_run: ["ContextAgent", "SecurityAgent", "PerformanceAgent"],
+  });
+});
+
+
 
 agents.post("/analyze", async (c) => {
   const user = getCurrentUser(c);
@@ -47,8 +150,15 @@ agents.post("/analyze", async (c) => {
     accessToken,
   };
 
-  // Run full analysis using the orchestrator
-  const result = await orchestrator.analyzeRepository(context);
+  // ✅ Wrap in traceable to consolidate all agent traces into one LangSmith run
+  const runAnalysis = traceable(
+    async (ctx: AgentContext) => {
+      return await orchestrator.analyzeRepository(ctx);
+    },
+    { name: `Analyze Repository: ${owner}/${repoName}`, run_type: "chain" }
+  );
+
+  const result = await runAnalysis(context);
 
   return c.json({
     success: true,
@@ -127,7 +237,15 @@ agents.post("/generate-fix", async (c) => {
     return c.json({ detail: "Failed to generate fix" }, 500);
   }
 
-  // Save fix to database
+  // ✅ FIXED: Generate diff and include all required fields
+  const diff = createTwoFilesPatch(
+    `a/${fix.fix.file_path}`,
+    `b/${fix.fix.file_path}`,
+    fix.fix.original_code,
+    fix.fix.fixed_code
+  );
+
+  // Save fix to database with all fields
   const { data: savedFix, error: saveError } = await supabase
     .from("fixes")
     .insert({
@@ -135,9 +253,11 @@ agents.post("/generate-fix", async (c) => {
       file_path: fix.fix.file_path,
       original_code: fix.fix.original_code,
       fixed_code: fix.fix.fixed_code,
+      diff, // ✅ FIXED: Added missing diff
       start_line: fix.fix.start_line,
       end_line: fix.fix.end_line,
       explanation: fix.fix.explanation,
+      confidence_score: 0.85, // ✅ FIXED: Added confidence score
       pr_title: fix.pr_description.title,
       pr_body: fix.pr_description.body,
     })
@@ -146,9 +266,10 @@ agents.post("/generate-fix", async (c) => {
 
   if (saveError) {
     console.error("Failed to save fix:", saveError);
+    return c.json({ detail: "Failed to save fix to database" }, 500);
   }
 
-  return c.json({ success: true, fix: savedFix || fix, cached: false });
+  return c.json({ success: true, fix: savedFix, cached: false });
 });
 
 // Get analysis status/results for a repository
