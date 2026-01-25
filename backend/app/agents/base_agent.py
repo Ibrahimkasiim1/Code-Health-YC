@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Any
 import httpx
-from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from ..config import get_settings
 from ..database import get_supabase
@@ -15,9 +15,9 @@ class BaseAgent(ABC):
         self.settings = get_settings()
         self.supabase = get_supabase()
         self.mcp_client = get_mcp_client()
-        self.llm = ChatAnthropic(
-            model="claude-3-5-sonnet-20241022",
-            anthropic_api_key=self.settings.anthropic_api_key,
+        self.llm = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash",
+            google_api_key=self.settings.gemini_api_key,
             temperature=0,
         )
 

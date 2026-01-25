@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     github_client_secret: str = ""
     github_app_private_key: str = ""
 
-    # Anthropic
-    anthropic_api_key: str = ""
+    # Google Gemini
+    gemini_api_key: str = ""
 
     # JWT
     jwt_secret: str = "dev-secret-key-change-in-production"

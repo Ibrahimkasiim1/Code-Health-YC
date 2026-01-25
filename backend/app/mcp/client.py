@@ -105,6 +105,7 @@ class DirectDataAccess:
         benchmarks = {
             "openai": {"cost_per_user": 5.0, "cost_per_1k_requests": 0.50},
             "anthropic": {"cost_per_user": 4.0, "cost_per_1k_requests": 0.40},
+            "gemini": {"cost_per_user": 3.0, "cost_per_1k_requests": 0.25},
             "default": {"cost_per_user": 3.0, "cost_per_1k_requests": 0.30},
         }
 
