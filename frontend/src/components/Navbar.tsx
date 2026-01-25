@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/auth'
 import { Button } from './ui/button'
-import { LogOut, Activity } from 'lucide-react'
+import { LogOut, Activity, Settings } from 'lucide-react'
 
 export default function Navbar() {
   const { user, logout } = useAuthStore()
@@ -25,6 +25,12 @@ export default function Navbar() {
 
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-600">{user?.email}</span>
+            <Link to="/settings">
+              <Button variant="ghost" size="sm">
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+            </Link>
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Logout

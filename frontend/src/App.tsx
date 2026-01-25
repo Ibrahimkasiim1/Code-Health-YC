@@ -5,6 +5,7 @@ import Signup from './pages/Signup'
 import Dashboard from './pages/Dashboard'
 import IssueDetail from './pages/IssueDetail'
 import GitHubCallback from './pages/GitHubCallback'
+import Settings from './pages/Settings'
 import Navbar from './components/Navbar'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -40,6 +41,14 @@ function App() {
           element={
             <ProtectedRoute>
               <IssueDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
             </ProtectedRoute>
           }
         />

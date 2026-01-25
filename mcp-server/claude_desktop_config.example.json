@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "code-health": {
+      "command": "npx",
+      "args": [
+        "tsx",
+        "/path/to/Code-Health-YC/mcp-server/src/index.ts"
+      ],
+      "env": {
+        "SUPABASE_URL": "your-supabase-url",
+        "SUPABASE_SERVICE_KEY": "your-supabase-service-key",
+        "BACKEND_URL": "http://localhost:8000"
+      }
+    }
+  }
+}
