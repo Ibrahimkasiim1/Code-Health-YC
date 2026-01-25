@@ -124,3 +124,21 @@ export const agentsApi = {
       body: JSON.stringify({ issue_id: issueId }),
     }),
 }
+
+// Settings API
+export const settingsApi = {
+  getMcpConfig: () => fetchWithAuth('/settings/mcp-config'),
+
+  saveMcpConfig: (config: { supabase_url: string; supabase_service_key: string; project_name?: string }) =>
+    fetchWithAuth('/settings/mcp-config', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    }),
+
+  deleteMcpConfig: () =>
+    fetchWithAuth('/settings/mcp-config', {
+      method: 'DELETE',
+    }),
+
+  getMcpConnection: () => fetchWithAuth('/settings/mcp-connection'),
+}
