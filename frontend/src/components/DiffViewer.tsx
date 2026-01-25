@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Editor, { DiffEditor } from '@monaco-editor/react'
 
 interface DiffViewerProps {
