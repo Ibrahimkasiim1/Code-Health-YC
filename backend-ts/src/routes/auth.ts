@@ -111,21 +111,27 @@ auth.post("/github/callback", authMiddleware, async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = githubCallbackSchema.safeParse(body);
   if (!parsed.success) {
+    console.error("GitHub callback validation failed:", parsed.error);
     return c.json({ detail: "Invalid callback payload" }, 400);
   }
 
   const { code } = parsed.data;
   const user = getCurrentUser(c);
+  console.log(`Processing GitHub callback for user ${user.id}`);
 
   const tokenData = await exchangeCodeForToken(code);
   if (!tokenData?.access_token) {
+    console.error("Failed to exchange code for token");
     return c.json({ detail: "Failed to exchange code for token" }, 400);
   }
+  console.log("Successfully exchanged code for access token");
 
   const githubUser = await getGitHubUser(tokenData.access_token);
   if (!githubUser) {
+    console.error("Failed to get GitHub user info");
     return c.json({ detail: "Failed to get GitHub user info" }, 400);
   }
+  console.log(`GitHub user authenticated: ${githubUser.login}`);
 
   const installation = await saveGitHubInstallation({
     userId: user.id,
@@ -135,8 +141,10 @@ auth.post("/github/callback", authMiddleware, async (c) => {
   });
 
   if (!installation) {
+    console.error("Failed to save GitHub installation to database");
     return c.json({ detail: "Failed to save GitHub installation" }, 500);
   }
+  console.log(`GitHub installation saved with ID: ${installation.id}`);
 
   return c.json({
     success: true,
@@ -152,14 +160,26 @@ auth.get("/github/status", authMiddleware, async (c) => {
   const user = getCurrentUser(c);
   const supabase = getSupabase();
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("github_installations")
-    .select("id, created_at, installation_id")
-    .eq("user_id", user.id);
+    .select("id, created_at, installation_id, access_token_encrypted")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error checking GitHub status:", error);
+  }
+
+  // Check if installation exists AND has a valid access token
+  const isConnected = !!data && !!data.access_token_encrypted;
 
   return c.json({
-    connected: !!data && data.length > 0,
-    installation: data && data.length > 0 ? data[0] : null,
+    connected: isConnected,
+    installation: isConnected ? {
+      id: data.id,
+      created_at: data.created_at,
+      installation_id: data.installation_id,
+    } : null,
   });
 });
 

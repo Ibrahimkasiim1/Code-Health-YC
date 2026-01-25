@@ -17,6 +17,8 @@ export default function GitHubCallback() {
       const state = searchParams.get('state')
       const errorParam = searchParams.get('error')
 
+      console.log('GitHub callback received:', { code: !!code, state: !!state, error: errorParam })
+
       if (errorParam) {
         setStatus('error')
         setError(`GitHub authorization failed: ${errorParam}`)
@@ -30,11 +32,14 @@ export default function GitHubCallback() {
       }
 
       try {
-        await authApi.handleGitHubCallback(code, state)
+        console.log('Sending callback to backend...')
+        const response = await authApi.handleGitHubCallback(code, state)
+        console.log('GitHub callback successful:', response)
         setStatus('success')
         // Redirect to dashboard after short delay to show success message
         setTimeout(() => navigate('/'), 1500)
       } catch (err) {
+        console.error('GitHub callback error:', err)
         setStatus('error')
         setError(err instanceof Error ? err.message : 'Failed to complete GitHub authorization')
       }

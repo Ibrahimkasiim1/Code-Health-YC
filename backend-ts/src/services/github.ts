@@ -100,6 +100,7 @@ export async function saveGitHubInstallation(params: {
   };
 
   if (existing?.id) {
+    console.log(`Updating existing GitHub installation for user ${userId}`);
     const { data, error } = await supabase
       .from("github_installations")
       .update(payload)
@@ -107,17 +108,32 @@ export async function saveGitHubInstallation(params: {
       .select("id")
       .single();
 
-    if (error || !data) return null;
+    if (error) {
+      console.error("Error updating GitHub installation:", error);
+      return null;
+    }
+    if (!data) {
+      console.error("No data returned after updating GitHub installation");
+      return null;
+    }
     return { id: data.id };
   }
 
+  console.log(`Creating new GitHub installation for user ${userId}`);
   const { data, error } = await supabase
     .from("github_installations")
     .insert(payload)
     .select("id")
     .single();
 
-  if (error || !data) return null;
+  if (error) {
+    console.error("Error inserting GitHub installation:", error);
+    return null;
+  }
+  if (!data) {
+    console.error("No data returned after inserting GitHub installation");
+    return null;
+  }
   return { id: data.id };
 }
 
