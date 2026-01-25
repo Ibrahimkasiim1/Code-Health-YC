@@ -1,53 +1,30 @@
 import { BaseAgent, AgentConfig, AgentContext } from "./base.js";
 import { securityAgentTools } from "../tools/index.js";
-import { Issue } from "../schemas/issue.js";
+import { Issue, createIssue } from "../schemas/issue.js";
 import { AgentOutput } from "../schemas/issue.js";
+import { fetchRepositoryFiles, shouldSkipSecurityFile } from "../utils/fileUtils.js";
+import {
+  scanForSecrets,
+  detectSQLInjections,
+  detectXSSVulnerabilities,
+  detectUnhandledPromises,
+} from "../tools/securityAnalysis.js";
 
-const SECURITY_AGENT_PROMPT = `You are the Security Agent for a code health platform. Your job is to identify security vulnerabilities in the codebase.
+const SECURITY_AGENT_PROMPT = `You are the Security Agent for a code health platform.
 
-You have access to tools to:
-- Search and read files from the GitHub repository
-- Parse code structure and dependencies
-- Check CVE database for known vulnerabilities
-- Use LLM analysis for security review
+You have already been provided with detected security issues from static analysis.
+Your job is to:
+1. Review the detected issues
+2. Add additional context and severity assessment
+3. Provide detailed remediation guidance
+4. Identify any patterns or systemic issues
 
-Focus on finding:
-1. **Hardcoded Secrets**: API keys, passwords, tokens in code
-2. **SQL Injection**: Unsanitized user input in database queries
-3. **XSS Vulnerabilities**: Unescaped user input in HTML output
-4. **Insecure Dependencies**: Packages with known CVEs
-5. **Authentication Issues**: Weak auth, missing validation
-6. **CSRF Vulnerabilities**: Missing CSRF protection
-7. **Path Traversal**: Unsanitized file paths
-8. **Insecure Deserialization**: Unsafe JSON/object parsing
+Focus on high-impact vulnerabilities and provide actionable fixes.`;
 
-For each vulnerability found, provide:
-- Exact file path and line numbers
-- Code snippet showing the vulnerability
-- Root cause explanation
-- Impact assessment
-- Suggested fix with code example
-
-Output as JSON:
-{
-  "issues": [
-    {
-      "issue_id": "sec-xxx",
-      "type": "security_vulnerability",
-      "severity": "critical|high|medium|low",
-      "title": "Brief title",
-      "description": "Detailed description",
-      "file_path": "path/to/file.ts",
-      "line_start": 10,
-      "line_end": 15,
-      "code_snippet": "vulnerable code",
-      "root_cause": "Why this is vulnerable",
-      "impact": "What could happen if exploited",
-      "suggested_fix": "How to fix it",
-      "confidence": 0.95
-    }
-  ]
-}`;
+interface FileContent {
+  path: string;
+  content: string;
+}
 
 export class SecurityAgent extends BaseAgent {
   constructor() {
@@ -62,97 +39,110 @@ export class SecurityAgent extends BaseAgent {
   }
 
   protected buildUserMessage(context: AgentContext): string {
-    const repoContext = context.repositoryContext;
-    const frameworks = (repoContext?.frameworks as string[]) || [];
-    const languages = (repoContext?.languages as Array<{ name: string }>) || [];
-
-    return `Analyze the repository ${context.owner}/${context.repo} for security vulnerabilities.
-
-Repository Context:
-- Languages: ${languages.map(l => l.name).join(", ") || "Unknown"}
-- Frameworks: ${frameworks.join(", ") || "Unknown"}
-
-Focus your analysis on:
-1. Search for hardcoded secrets (API keys, passwords, tokens) in SOURCE CODE files
-2. Check authentication and authorization code
-3. Look for SQL/NoSQL injection vulnerabilities
-4. Find XSS vulnerabilities in frontend code
-5. Check dependencies for known CVEs
-6. Review file upload and path handling
-
-IMPORTANT RULES:
-- DO NOT analyze .env, .env.example, .env.local, or any environment files
-- DO NOT analyze config files that are meant to contain credentials
-- ONLY flag secrets found in actual source code files (.ts, .js, .tsx, .jsx, .py, etc.)
-- Environment files are EXPECTED to contain API keys and are not security issues
-
-Provide all findings as JSON with the standard issue format.`;
+    return `Analyze security issues for ${context.owner}/${context.repo}`;
   }
 
   /**
-   * ✅ FIXED: Post-filter to remove false positives from environment files
+   * Execute security analysis using direct static analysis + LLM review
    */
   async execute(context: AgentContext): Promise<AgentOutput> {
     const startTime = Date.now();
 
     try {
-      const agent = this.createAgent();
-      const userMessage = this.buildUserMessage(context);
+      console.log(`[SecurityAgent] Starting analysis for ${context.owner}/${context.repo}`);
 
-      const result = await agent.invoke({
-        messages: [{ role: "user", content: userMessage }],
-      }, {
-        configurable: {
-          accessToken: context.accessToken,
-          owner: context.owner,
-          repo: context.repo,
-          repoId: context.repoId,
-        },
-        recursionLimit: this.getRecursionLimit(),
+      // Step 1: Fetch source files from GitHub
+      const files = await fetchRepositoryFiles(context, {
+        extensions: ['.ts', '.tsx', '.js', '.jsx', '.py', '.java', '.go', '.rb', '.php'],
+        maxFiles: 100,
       });
+      console.log(`[SecurityAgent] Fetched ${files.length} source files`);
 
-      let issues = this.parseIssues(result);
+      // Step 2: Run static analysis tools directly (no LLM needed for detection)
+      const issues: Issue[] = [];
 
-      // ✅ Post-filter: Remove issues from environment and config files
-      const envFilePatterns = [
-        '.env',
-        '.env.example',
-        '.env.local',
-        '.env.production',
-        '.env.development',
-        '.env.test',
-        '.env.staging',
-        'config.json',
-        'settings.json',
-        'secrets.json',
-        'credentials.json',
-        'docker-compose.yml',
-        'docker-compose.yaml',
-      ];
-
-      const originalCount = issues.length;
-      issues = issues.filter(issue => {
-        const filePath = issue.file_path.toLowerCase();
-        const fileName = filePath.split('/').pop() || '';
-
-        // Check if file matches environment file patterns
-        const isEnvFile = envFilePatterns.some(pattern =>
-          fileName === pattern || fileName.startsWith(pattern.split('.')[0])
-        );
-
-        // Only filter out if it's a security issue in an env file
-        if (isEnvFile && issue.type === 'security_vulnerability') {
-          console.log(`[SecurityAgent] ✅ Filtered out false positive from ${issue.file_path}`);
-          return false;
+      for (const file of files) {
+        // Skip environment and config files
+        if (shouldSkipSecurityFile(file.path)) {
+          continue;
         }
 
-        return true;
-      });
+        // Scan for secrets
+        const secretMatches = scanForSecrets(file.content, file.path);
+        for (const match of secretMatches) {
+          issues.push(createIssue("SecurityAgent", "security_vulnerability", {
+            severity: match.severity,
+            title: match.description,
+            description: `Found ${match.type} in ${file.path} at line ${match.line_number}`,
+            file_path: file.path,
+            line_start: match.line_number,
+            line_end: match.line_number,
+            code_snippet: match.match.substring(0, 50) + "...",
+            root_cause: "Hardcoded secret in source code",
+            impact: "Secrets exposed in repository can be accessed by anyone with repo access",
+            suggested_fix: `1. Remove the secret from code\n2. Store in environment variables\n3. Rotate the exposed secret immediately\n4. Add to .gitignore`,
+            confidence: 0.95,
+          }));
+        }
 
-      const filteredCount = originalCount - issues.length;
-      if (filteredCount > 0) {
-        console.log(`[SecurityAgent] Filtered ${filteredCount} false positives from env files`);
+        // Detect SQL injections (TypeScript/JavaScript files only)
+        if (/\.(ts|tsx|js|jsx)$/.test(file.path)) {
+          const sqlIssues = detectSQLInjections(file.content, file.path);
+          for (const sqlIssue of sqlIssues) {
+            issues.push(createIssue("SecurityAgent", "security_vulnerability", {
+              severity: sqlIssue.severity,
+              title: "SQL Injection Vulnerability",
+              description: sqlIssue.description,
+              file_path: sqlIssue.file_path,
+              line_start: sqlIssue.line_number,
+              line_end: sqlIssue.line_number,
+              code_snippet: sqlIssue.code_snippet,
+              root_cause: `SQL query using ${sqlIssue.query_type} with user input`,
+              impact: "Attackers can execute arbitrary SQL queries, access sensitive data, or modify database",
+              suggested_fix: "Use parameterized queries or an ORM with proper escaping",
+              confidence: 0.9,
+            }));
+          }
+
+          // Detect XSS vulnerabilities
+          const xssIssues = detectXSSVulnerabilities(file.content, file.path);
+          for (const xssIssue of xssIssues) {
+            issues.push(createIssue("SecurityAgent", "security_vulnerability", {
+              severity: xssIssue.severity,
+              title: "Cross-Site Scripting (XSS) Vulnerability",
+              description: xssIssue.description,
+              file_path: xssIssue.file_path,
+              line_start: xssIssue.line_number,
+              line_end: xssIssue.line_number,
+              code_snippet: xssIssue.code_snippet,
+              root_cause: `Using ${xssIssue.vulnerability_type} without sanitization`,
+              impact: "Attackers can inject malicious scripts, steal cookies, or perform actions as the user",
+              suggested_fix: "Sanitize user input using DOMPurify or avoid innerHTML/dangerouslySetInnerHTML",
+              confidence: 0.85,
+            }));
+          }
+
+          // Detect unhandled promises
+          const promiseIssues = detectUnhandledPromises(file.content, file.path);
+          for (const promiseIssue of promiseIssues) {
+            issues.push(createIssue("SecurityAgent", "security_vulnerability", {
+              severity: promiseIssue.severity,
+              title: "Unhandled Promise Rejection",
+              description: promiseIssue.description,
+              file_path: promiseIssue.file_path,
+              line_start: promiseIssue.line_number,
+              line_end: promiseIssue.line_number,
+              code_snippet: promiseIssue.code_snippet,
+              root_cause: `${promiseIssue.promise_type} without error handling`,
+              impact: "Unhandled errors can crash the application or expose sensitive error information",
+              suggested_fix: "Add .catch() handler or wrap in try-catch block",
+              confidence: 0.8,
+            }));
+          }
+        }
       }
+
+      console.log(`[SecurityAgent] Found ${issues.length} security issues`);
 
       return {
         agent_name: this.name,
@@ -173,18 +163,6 @@ Provide all findings as JSON with the standard issue format.`;
       };
     }
   }
-
-  protected parseIssues(result: { messages: Array<{ content: string }> }): Issue[] {
-    const baseIssues = super.parseIssues(result);
-
-    // Ensure all issues have the correct type
-    return baseIssues.map(issue => ({
-      ...issue,
-      type: "security_vulnerability" as const,
-      agent: this.name,
-    }));
-  }
 }
 
 export const securityAgent = new SecurityAgent();
-

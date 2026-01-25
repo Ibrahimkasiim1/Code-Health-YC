@@ -9,6 +9,7 @@ import repoRoutes from "./routes/repositories.js";
 import issueRoutes from "./routes/issues.js";
 import agentRoutes from "./routes/agents.js";
 import webhookRoutes from "./routes/webhooks.js";
+import chatbotRoutes from "./routes/chatbot.js";
 
 const config = getConfig();
 const app = new Hono();
@@ -30,6 +31,7 @@ app.route("/repositories", repoRoutes);
 app.route("/issues", issueRoutes);
 app.route("/agents", agentRoutes);
 app.route("/webhooks", webhookRoutes);
+app.route("/chatbot", chatbotRoutes);
 
 serve({ fetch: app.fetch, port: config.PORT });
 
