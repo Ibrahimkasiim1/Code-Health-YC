@@ -61,15 +61,29 @@ export async function exchangeCodeForToken(
 // Get GitHub user info
 export async function getGitHubUser(
   accessToken: string
-): Promise<{ login: string; id: number; avatar_url: string } | null> {
+): Promise<{ login: string; id: number; avatar_url: string; email: string | null } | null> {
   const octokit = new Octokit({ auth: accessToken });
 
   try {
     const { data } = await octokit.rest.users.getAuthenticated();
+    
+    // Try to get the primary email if not public
+    let email = data.email;
+    if (!email) {
+      try {
+        const { data: emails } = await octokit.rest.users.listEmailsForAuthenticatedUser();
+        const primaryEmail = emails.find((e) => e.primary);
+        email = primaryEmail?.email || emails[0]?.email || null;
+      } catch {
+        // Email scope might not be available
+      }
+    }
+    
     return {
       login: data.login,
       id: data.id,
       avatar_url: data.avatar_url,
+      email,
     };
   } catch {
     return null;

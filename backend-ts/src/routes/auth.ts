@@ -107,6 +107,95 @@ auth.get("/github/authorize", async (c) => {
   return c.json({ authorization_url: authUrl, auth_url: authUrl, state });
 });
 
+// GitHub login - creates user if doesn't exist, returns JWT
+auth.post("/github/login", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = githubCallbackSchema.safeParse(body);
+  if (!parsed.success) {
+    console.error("GitHub login validation failed:", parsed.error);
+    return c.json({ detail: "Invalid login payload" }, 400);
+  }
+
+  const { code } = parsed.data;
+  console.log("Processing GitHub login...");
+
+  // Exchange code for access token
+  const tokenData = await exchangeCodeForToken(code);
+  if (!tokenData?.access_token) {
+    console.error("Failed to exchange code for token");
+    return c.json({ detail: "Failed to exchange code for token" }, 400);
+  }
+  console.log("Successfully exchanged code for access token");
+
+  // Get GitHub user info
+  const githubUser = await getGitHubUser(tokenData.access_token);
+  if (!githubUser) {
+    console.error("Failed to get GitHub user info");
+    return c.json({ detail: "Failed to get GitHub user info" }, 400);
+  }
+  console.log(`GitHub user authenticated: ${githubUser.login}`);
+
+  const supabase = getSupabase();
+  
+  // Use GitHub email or create a placeholder email
+  const email = githubUser.email || `${githubUser.login}@github.local`;
+  
+  // Check if user exists with this email
+  let { data: user } = await supabase
+    .from("users")
+    .select("*")
+    .eq("email", email)
+    .single();
+
+  // If no user found, create one
+  if (!user) {
+    console.log(`Creating new user for GitHub user: ${githubUser.login}`);
+    const { data: newUser, error } = await supabase
+      .from("users")
+      .insert({
+        email,
+        password_hash: `github:${githubUser.id}`, // Mark as GitHub-authenticated user
+      })
+      .select()
+      .single();
+
+    if (error || !newUser) {
+      console.error("Failed to create user:", error);
+      return c.json({ detail: "Failed to create user account" }, 500);
+    }
+    user = newUser;
+  }
+
+  // Save GitHub installation for this user
+  const installation = await saveGitHubInstallation({
+    userId: user.id,
+    accessToken: tokenData.access_token,
+    refreshToken: tokenData.refresh_token ?? null,
+    installationId: null,
+  });
+
+  if (!installation) {
+    console.error("Failed to save GitHub installation to database");
+    return c.json({ detail: "Failed to save GitHub installation" }, 500);
+  }
+  console.log(`GitHub installation saved with ID: ${installation.id}`);
+
+  // Create JWT token
+  const accessToken = createAccessToken(user.id);
+
+  return c.json({
+    access_token: accessToken,
+    token_type: "bearer",
+    user: {
+      id: user.id,
+      email: user.email,
+      github_login: githubUser.login,
+      avatar_url: githubUser.avatar_url,
+    },
+  });
+});
+
+// Legacy callback for users already logged in (connecting GitHub to existing account)
 auth.post("/github/callback", authMiddleware, async (c) => {
   const body = await c.req.json().catch(() => null);
   const parsed = githubCallbackSchema.safeParse(body);

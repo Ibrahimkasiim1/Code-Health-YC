@@ -36,9 +36,12 @@ repositories.get("/available", async (c) => {
 repositories.post("/connect", async (c) => {
   const user = getCurrentUser(c);
   const body = await c.req.json().catch(() => null);
+  console.log("Connect repo request body:", JSON.stringify(body));
+  
   const parsed = connectRepoSchema.safeParse(body);
   if (!parsed.success) {
-    return c.json({ detail: "Invalid repository payload" }, 400);
+    console.error("Schema validation failed:", parsed.error.flatten());
+    return c.json({ detail: "Invalid repository payload", errors: parsed.error.flatten() }, 400);
   }
 
   const { repo_full_name, default_branch } = parsed.data;
@@ -51,16 +54,23 @@ repositories.post("/connect", async (c) => {
     .single();
 
   if (!installation) {
-    return c.json({ detail: "GitHub not connected" }, 400);
+    console.error("No GitHub installation found for user:", user.id);
+    return c.json({ detail: "GitHub not connected. Please reconnect your GitHub account." }, 400);
   }
 
+  console.log("Found installation:", installation.id, "for user:", user.id);
+
+  // Check if this user already has this repo connected (not globally)
   const { data: existing } = await supabase
     .from("connected_repositories")
-    .select("id")
-    .eq("repo_full_name", repo_full_name);
+    .select("*")
+    .eq("repo_full_name", repo_full_name)
+    .eq("installation_id", installation.id);
 
   if (existing && existing.length > 0) {
-    return c.json({ detail: "Repository already connected" }, 400);
+    console.log("Repository already connected, returning existing:", existing[0].id);
+    // Return the existing repo instead of an error
+    return c.json({ repository: existing[0], message: "Repository already connected" });
   }
 
   const { data: repo, error } = await supabase
