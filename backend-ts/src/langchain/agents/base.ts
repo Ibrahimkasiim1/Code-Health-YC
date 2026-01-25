@@ -1,4 +1,4 @@
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatOpenAI } from "@langchain/openai";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { StructuredTool } from "@langchain/core/tools";
 import { getConfig } from "../../config.js";
@@ -29,7 +29,7 @@ export abstract class BaseAgent {
   protected priority: number;
   protected systemPrompt: string;
   protected tools: StructuredTool[];
-  protected model: ChatGoogleGenerativeAI;
+  protected model: ChatOpenAI;
 
   constructor(agentConfig: AgentConfig) {
     this.name = agentConfig.name;
@@ -37,9 +37,9 @@ export abstract class BaseAgent {
     this.priority = agentConfig.priority;
     this.systemPrompt = agentConfig.systemPrompt;
     this.tools = agentConfig.tools;
-    this.model = new ChatGoogleGenerativeAI({
-      apiKey: getConfig().GEMINI_API_KEY,
-      model: "gemini-1.5-flash-latest",
+    this.model = new ChatOpenAI({
+      apiKey: getConfig().OPENAI_API_KEY,
+      model: "gpt-4o-mini",
       temperature: 0.1,
     });
   }

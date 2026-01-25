@@ -1,9 +1,13 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { ChatOpenAI } from "@langchain/openai";
 import { getConfig } from "../../config.js";
 
-const getModel = () => new ChatGoogleGenerativeAI({ apiKey: getConfig().GEMINI_API_KEY, model: "gemini-1.5-flash-latest" });
+const getModel = () => new ChatOpenAI({
+  apiKey: getConfig().OPENAI_API_KEY,
+  model: "gpt-4o-mini",
+  temperature: 0.7
+});
 
 /**
  * Use LLM to analyze code for specific issue types

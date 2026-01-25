@@ -6,6 +6,7 @@ const envSchema = z.object({
   GITHUB_CLIENT_ID: z.string().min(1),
   GITHUB_CLIENT_SECRET: z.string().min(1),
   GEMINI_API_KEY: z.string().min(1),
+  OPENAI_API_KEY: z.string().min(1),
   JWT_SECRET: z.string().min(1),
   JWT_ALGORITHM: z.string().default("HS256"),
   JWT_EXPIRATION_HOURS: z.coerce.number().default(24),
