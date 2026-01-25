@@ -13,6 +13,11 @@ const envSchema = z.object({
   GITHUB_WEBHOOK_SECRET: z.string().optional().default(""),
   MCP_BASE_URL: z.string().optional().default(""),
   PORT: z.coerce.number().default(8000),
+  // LangSmith configuration
+  LANGCHAIN_TRACING_V2: z.string().optional().default("true"),
+  LANGCHAIN_ENDPOINT: z.string().optional().default("https://api.smith.langchain.com"),
+  LANGCHAIN_API_KEY: z.string().optional().default(""),
+  LANGCHAIN_PROJECT: z.string().optional().default("code-health-platform"),
 });
 
 export type Env = z.infer<typeof envSchema>;

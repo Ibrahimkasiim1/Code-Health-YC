@@ -59,7 +59,7 @@ export interface BrexTransaction {
 export interface Issue {
   id: string;
   repo_id: string;
-  agent_type: string;
+  agent_type?: string;
   issue_type: string;
   title: string;
   description: string;
@@ -67,6 +67,14 @@ export interface Issue {
   status: "open" | "in_progress" | "resolved" | "dismissed";
   metrics?: Record<string, unknown>;
   file_path?: string;
+  line_start?: number;
+  line_end?: number;
+  code_snippet?: string;
+  root_cause?: string;
+  impact?: string;
+  suggested_fix?: string;
+  confidence?: number;
+  agent?: string;
   created_at: string;
 }
 
@@ -75,10 +83,43 @@ export interface Fix {
   issue_id: string;
   original_code: string;
   fixed_code: string;
-  diff: string;
-  confidence_score: number;
+  diff?: string;
+  confidence_score?: number;
   explanation: string;
+  file_path?: string;
+  start_line?: number;
+  end_line?: number;
+  pr_title?: string;
+  pr_body?: string;
   created_at: string;
+}
+
+export interface TelemetryEvent {
+  id: string;
+  endpoint?: string;
+  event_type?: string;
+  duration_ms?: number;
+  user_id?: string;
+  request_hash?: string;
+  metadata?: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface SessionEvent {
+  id: string;
+  session_id: string;
+  page_url?: string;
+  duration_ms?: number;
+  timestamp: string;
+}
+
+export interface ErrorEvent {
+  id: string;
+  error_message?: string;
+  stack_trace?: string;
+  endpoint?: string;
+  user_id?: string;
+  timestamp: string;
 }
 
 export interface PullRequest {
