@@ -72,7 +72,7 @@ async function seedTelemetryEvents(repoId: string) {
     }
 
     events.push({
-      repo_id: repoId, // ✅ FIXED: Add repo_id for filtering
+      repo_id: repoId, // repo_id for filtering
       endpoint,
       event_type: "api_call",
       duration_ms: Math.round(duration_ms),
@@ -90,7 +90,7 @@ async function seedTelemetryEvents(repoId: string) {
   if (error) {
     console.error("Error seeding telemetry events:", error);
   } else {
-    console.log(`✅ Created ${events.length} telemetry events for repo ${repoId}`);
+    console.log(`Created ${events.length} telemetry events for repo ${repoId}`);
   }
 }
 
@@ -123,7 +123,7 @@ async function seedSessionEvents(repoId: string) {
     }
 
     sessions.push({
-      repo_id: repoId, // ✅ FIXED: Add repo_id for filtering
+      repo_id: repoId, // repo_id for filtering
       session_id: `session_${i}`,
       page_url: page,
       duration_ms: Math.round(duration_ms),
@@ -135,7 +135,7 @@ async function seedSessionEvents(repoId: string) {
   if (error) {
     console.error("Error seeding session events:", error);
   } else {
-    console.log(`✅ Created ${sessions.length} session events for repo ${repoId}`);
+    console.log(`Created ${sessions.length} session events for repo ${repoId}`);
   }
 }
 
@@ -159,7 +159,7 @@ async function seedErrorEvents(repoId: string) {
     const timestamp = new Date(now.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000);
 
     errors.push({
-      repo_id: repoId, // ✅ FIXED: Add repo_id for filtering
+      repo_id: repoId, // repo_id for filtering
       error_message: errorMessage,
       stack_trace: `Error: ${errorMessage}\n    at Object.<anonymous> (/app/src/index.ts:${Math.floor(Math.random() * 100)}:${Math.floor(Math.random() * 50)})`,
       endpoint: "/api/users",
@@ -172,12 +172,12 @@ async function seedErrorEvents(repoId: string) {
   if (error) {
     console.error("Error seeding error events:", error);
   } else {
-    console.log(`✅ Created ${errors.length} error events for repo ${repoId}`);
+    console.log(`Created ${errors.length} error events for repo ${repoId}`);
   }
 }
 
 async function main() {
-  console.log("🌱 Seeding mock telemetry data...\n");
+  console.log("Seeding mock telemetry data...\n");
 
   try {
     const repoId = await getRepoId();
@@ -187,12 +187,12 @@ async function main() {
     await seedSessionEvents(repoId);
     await seedErrorEvents(repoId);
 
-    console.log("\n✅ Mock telemetry data seeded successfully!");
+    console.log("\nMock telemetry data seeded successfully!");
     console.log(`Agents can now analyze this data for repo ${repoId}`);
     console.log("\nTo seed for a different repository, run:");
     console.log("  npm run seed:telemetry <repo_id_uuid>");
   } catch (err) {
-    console.error("❌ Failed to seed telemetry data:", err);
+    console.error("Failed to seed telemetry data:", err);
     process.exit(1);
   }
 }

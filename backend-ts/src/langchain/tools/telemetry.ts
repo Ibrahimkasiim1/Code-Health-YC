@@ -18,7 +18,7 @@ export const queryTelemetryEvents = tool(
         .gte("timestamp", input.start_date)
         .lte("timestamp", input.end_date);
 
-      // ✅ FIXED: Filter by repo_id if available
+      // Filter by repo_id if available
       if (repoId) query = query.eq("repo_id", repoId);
 
       if (input.endpoint) query = query.eq("endpoint", input.endpoint);
@@ -65,7 +65,7 @@ export const calculateLatencyPercentiles = tool(
         .gte("timestamp", cutoff.toISOString())
         .not("duration_ms", "is", null);
 
-      // ✅ FIXED: Filter by repo_id if available
+      // Filter by repo_id if available
       if (repoId) query = query.eq("repo_id", repoId);
 
       const { data, error } = await query;
@@ -112,7 +112,7 @@ export const getSessionFlows = tool(
         .lte("timestamp", input.end_date)
         .order("timestamp", { ascending: true });
 
-      // ✅ FIXED: Filter by repo_id if available
+      // Filter by repo_id if available
       if (repoId) query = query.eq("repo_id", repoId);
 
       if (input.session_id) query = query.eq("session_id", input.session_id);
@@ -164,7 +164,7 @@ export const getErrorEvents = tool(
         .select("error_message, stack_trace, endpoint, user_id, timestamp")
         .gte("timestamp", cutoff.toISOString());
 
-      // ✅ FIXED: Filter by repo_id if available
+      // Filter by repo_id if available
       if (repoId) query = query.eq("repo_id", repoId);
 
       const { data, error } = await query;
@@ -222,7 +222,7 @@ export const detectDuplicateRequests = tool(
         .gte("timestamp", cutoff.toISOString())
         .order("timestamp", { ascending: true });
 
-      // ✅ FIXED: Filter by repo_id if available
+      // Filter by repo_id if available
       if (repoId) query = query.eq("repo_id", repoId);
 
       const { data, error } = await query;

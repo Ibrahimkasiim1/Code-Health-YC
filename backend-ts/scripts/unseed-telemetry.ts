@@ -13,9 +13,9 @@ async function unseedTelemetry() {
   const repoId = process.argv[2];
 
   if (repoId) {
-    console.log(`🗑️  Deleting telemetry data for repo ${repoId}...`);
+    console.log(` Deleting telemetry data for repo ${repoId}...`);
   } else {
-    console.log("🗑️  Deleting ALL telemetry data...");
+    console.log(" Deleting ALL telemetry data...");
   }
 
   try {
@@ -29,9 +29,9 @@ async function unseedTelemetry() {
     const { error: telemetryError, count: telemetryCount } = await telemetryQuery;
 
     if (telemetryError) {
-      console.error("❌ Failed to delete telemetry_events:", telemetryError);
+      console.error("Failed to delete telemetry_events:", telemetryError);
     } else {
-      console.log(`✅ Deleted ${telemetryCount || 'all'} rows from telemetry_events`);
+      console.log(`Deleted ${telemetryCount || 'all'} rows from telemetry_events`);
     }
 
     // Delete from session_events
@@ -44,9 +44,9 @@ async function unseedTelemetry() {
     const { error: sessionError, count: sessionCount } = await sessionQuery;
 
     if (sessionError) {
-      console.error("❌ Failed to delete session_events:", sessionError);
+      console.error("Failed to delete session_events:", sessionError);
     } else {
-      console.log(`✅ Deleted ${sessionCount || 'all'} rows from session_events`);
+      console.log(`Deleted ${sessionCount || 'all'} rows from session_events`);
     }
 
     // Delete from error_events
@@ -59,18 +59,18 @@ async function unseedTelemetry() {
     const { error: errorError, count: errorCount } = await errorQuery;
 
     if (errorError) {
-      console.error("❌ Failed to delete error_events:", errorError);
+      console.error("Failed to delete error_events:", errorError);
     } else {
-      console.log(`✅ Deleted ${errorCount || 'all'} rows from error_events`);
+      console.log(`Deleted ${errorCount || 'all'} rows from error_events`);
     }
 
     if (repoId) {
-      console.log(`\n✅ Telemetry data for repo ${repoId} deleted successfully!`);
+      console.log(`\nTelemetry data for repo ${repoId} deleted successfully!`);
     } else {
-      console.log("\n✅ All telemetry data deleted successfully!");
+      console.log("\nAll telemetry data deleted successfully!");
     }
   } catch (error) {
-    console.error("❌ Unexpected error:", error);
+    console.error("Unexpected error:", error);
     process.exit(1);
   }
 }

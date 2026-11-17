@@ -35,4 +35,4 @@ app.route("/chatbot", chatbotRoutes);
 
 serve({ fetch: app.fetch, port: config.PORT });
 
-console.log(`🚀 Backend running on http://localhost:${config.PORT}`);
+console.log(`Backend running on http://localhost:${config.PORT}`);

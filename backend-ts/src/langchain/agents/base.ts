@@ -63,7 +63,7 @@ export abstract class BaseAgent {
    * Get the recursion limit for this agent (can be overridden)
    */
   protected getRecursionLimit(): number {
-    return 50; // ✅ FIXED: Increased from 25 to 50 for more complex analysis
+    return 50; // headroom for more complex analysis
   }
 
   /**
@@ -116,7 +116,7 @@ export abstract class BaseAgent {
   protected abstract buildUserMessage(context: AgentContext): string;
 
   /**
-   * ✅ FIXED: Improved JSON parsing with multiple fallback methods
+   * Improved JSON parsing with multiple fallback methods
    */
   protected parseIssues(result: { messages: Array<{ content: string | any }> }): Issue[] {
     try {

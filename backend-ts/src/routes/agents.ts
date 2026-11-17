@@ -14,7 +14,7 @@ agents.use("*", authMiddleware);
 // Initialize LangSmith on module load
 configureLangSmith();
 
-// ✅ NEW: Quick analyze endpoint for demo (faster, focused results)
+// Quick analyze endpoint for demo (faster, focused results)
 agents.post("/quick-analyze", async (c) => {
   const user = getCurrentUser(c);
   const body = await c.req.json().catch(() => null);
@@ -150,7 +150,7 @@ agents.post("/analyze", async (c) => {
     accessToken,
   };
 
-  // ✅ Wrap in traceable to consolidate all agent traces into one LangSmith run
+  // Wrap in traceable to consolidate all agent traces into one LangSmith run
   const runAnalysis = traceable(
     async (ctx: AgentContext) => {
       return await orchestrator.analyzeRepository(ctx);
@@ -237,7 +237,7 @@ agents.post("/generate-fix", async (c) => {
     return c.json({ detail: "Failed to generate fix" }, 500);
   }
 
-  // ✅ FIXED: Generate diff and include all required fields
+  // Generate diff and include all required fields
   const diff = createTwoFilesPatch(
     `a/${fix.fix.file_path}`,
     `b/${fix.fix.file_path}`,
@@ -253,11 +253,11 @@ agents.post("/generate-fix", async (c) => {
       file_path: fix.fix.file_path,
       original_code: fix.fix.original_code,
       fixed_code: fix.fix.fixed_code,
-      diff, // ✅ FIXED: Added missing diff
+      diff,
       start_line: fix.fix.start_line,
       end_line: fix.fix.end_line,
       explanation: fix.fix.explanation,
-      confidence_score: 0.85, // ✅ FIXED: Added confidence score
+      confidence_score: 0.85,
       pr_title: fix.pr_description.title,
       pr_body: fix.pr_description.body,
     })

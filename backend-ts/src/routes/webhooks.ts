@@ -108,7 +108,7 @@ webhooks.post("/ingest", async (c) => {
 
   try {
     if (eventType === "telemetry" || eventType === "api_call") {
-      // ✅ FIXED: Include repo_id in telemetry events
+      // Include repo_id in telemetry events
       await supabase.from("telemetry_events").insert({
         repo_id: body.repo_id || null, // CRITICAL FIX
         endpoint: body.endpoint,
@@ -120,7 +120,7 @@ webhooks.post("/ingest", async (c) => {
         timestamp: body.timestamp || new Date().toISOString(),
       });
     } else if (eventType === "session" || eventType === "page_view") {
-      // ✅ FIXED: Include repo_id in session events
+      // Include repo_id in session events
       await supabase.from("session_events").insert({
         repo_id: body.repo_id || null, // CRITICAL FIX
         session_id: body.session_id,
@@ -129,7 +129,7 @@ webhooks.post("/ingest", async (c) => {
         timestamp: body.timestamp || new Date().toISOString(),
       });
     } else if (eventType === "error") {
-      // ✅ FIXED: Include repo_id in error events
+      // Include repo_id in error events
       await supabase.from("error_events").insert({
         repo_id: body.repo_id || null, // CRITICAL FIX
         error_message: body.error_message,

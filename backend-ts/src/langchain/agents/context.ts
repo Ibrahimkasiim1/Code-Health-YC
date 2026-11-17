@@ -152,7 +152,7 @@ Focus on accuracy. Only include what you can confidently determine from the file
   }
 
   /**
-   * ✅ FIXED: Execute context analysis with caching
+   * Execute context analysis with caching
    */
   async executeAndSave(context: AgentContext): Promise<RepositoryContext | null> {
     const startTime = Date.now();
@@ -161,7 +161,7 @@ Focus on accuracy. Only include what you can confidently determine from the file
     try {
       const supabase = getSupabase();
 
-      // ✅ FIXED: Check if context already exists and is recent (within 24 hours)
+      // Check if context already exists and is recent (within 24 hours)
       const { data: existingContext } = await supabase
         .from("repository_contexts")
         .select("context_json, analyzed_at")
@@ -175,7 +175,7 @@ Focus on accuracy. Only include what you can confidently determine from the file
         // Use cached context if less than 24 hours old
         if (hoursSinceAnalysis < 24) {
           const duration = Date.now() - startTime;
-          console.log(`[ContextAgent] ✅ Using cached context (${hoursSinceAnalysis.toFixed(1)}h old) - completed in ${duration}ms`);
+          console.log(`[ContextAgent] Using cached context (${hoursSinceAnalysis.toFixed(1)}h old) - completed in ${duration}ms`);
           return existingContext.context_json as RepositoryContext;
         }
 
@@ -208,12 +208,12 @@ Focus on accuracy. Only include what you can confidently determine from the file
       });
 
       const duration = Date.now() - startTime;
-      console.log(`[ContextAgent] ✅ Analysis complete in ${duration}ms`);
+      console.log(`[ContextAgent] Analysis complete in ${duration}ms`);
       console.log(`[ContextAgent] Found: ${repoContext.languages?.length || 0} languages, ${repoContext.frameworks?.length || 0} frameworks`);
 
       return repoContext;
     } catch (error) {
-      console.error(`[ContextAgent] ❌ Failed:`, error);
+      console.error(`[ContextAgent] Failed:`, error);
       return null;
     }
   }
